@@ -15,7 +15,7 @@ class ShellHelperTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.bin = self.root / "bin"
         self.bin.mkdir()
-        for name in ("runtime", "state", "cache"):
+        for name in ("runtime", "state", "cache", "data", "config"):
             (self.root / name).mkdir()
         self.env = dict(
             os.environ,
@@ -23,6 +23,8 @@ class ShellHelperTests(unittest.TestCase):
             XDG_RUNTIME_DIR=str(self.root / "runtime"),
             XDG_STATE_HOME=str(self.root / "state"),
             XDG_CACHE_HOME=str(self.root / "cache"),
+            XDG_DATA_HOME=str(self.root / "data"),
+            XDG_CONFIG_HOME=str(self.root / "config"),
         )
         self.mock("wl-paste", """#!/bin/bash
 if [[ " $* " == *" --list-types "* ]]; then
@@ -87,6 +89,25 @@ fi
         info = json.loads(result.stdout)
         self.assertEqual((info["kind"], info["source"], info["total"]), ("image", "history", 1))
         self.assertEqual(Path(info["path"]).read_bytes(), b"history fixture")
+
+    def test_setup_ignores_a_python_shim_without_system_gi_bindings(self):
+        marker = self.root / "python-shim-used"
+        self.mock("python3", '#!/bin/bash\ntouch "$TEST_SHIM_MARKER"\nexit 1\n')
+        self.mock("pgrep", "#!/bin/bash\nexit 1\n")
+        self.mock("notify-send", "#!/bin/bash\nexit 0\n")
+        system_gi = subprocess.run(
+            ["/usr/bin/python3", "-c", 'import gi; gi.require_version("Nautilus", "4.1")'],
+            capture_output=True,
+            timeout=10,
+        )
+        result = self.run_script("send.sh", "setup", TEST_SHIM_MARKER=str(marker))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(marker.exists(), "setup used the user's Python shim")
+        extension = self.root / "data" / "nautilus-python" / "extensions" / "taildrop.py"
+        if system_gi.returncode == 0:
+            self.assertEqual(extension.read_bytes(), (REPO / "nautilus" / "taildrop.py").read_bytes())
+        else:
+            self.assertFalse(extension.exists())
 
     def test_lint_fails_when_the_linter_is_missing(self):
         result = self.run_script("dev.sh", "lint", QMLLINT=str(self.root / "missing-qmllint"))

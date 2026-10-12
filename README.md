@@ -1,7 +1,7 @@
 # Taildrop for Omarchy
 
 This fork fixes clipboard image staging, excludes folders from the Nautilus action,
-and makes the development linter report missing tools and crashes.
+uses system Python for Nautilus setup, and reports missing linters and crashes.
 
 A share sheet for [Tailscale Taildrop](https://tailscale.com/kb/1106/taildrop):
 press a key, pick a device, and whatever you had highlighted, copied, or
@@ -51,7 +51,7 @@ The list refreshes while the sheet is open, so a device appears as soon as
 you open Tailscale on it.
 
 Taildrop works between untagged devices using the same Tailscale account.
-It cannot send to other users' devices or tagged servers.
+It cannot send to other users' devices or tagged devices.
 
 Send-only. Receiving is already handled by Omarchy's
 `omarchy-tailscale-receive` service, which drops incoming files into
