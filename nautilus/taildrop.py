@@ -40,6 +40,8 @@ class SendWithTaildropAction(GObject.GObject, Nautilus.MenuProvider):
         paths = []
 
         for file in files:
+            if file.is_directory():
+                continue
             location = file.get_location()
             if not location:
                 continue

@@ -1,5 +1,8 @@
 # Taildrop for Omarchy
 
+This fork fixes clipboard image staging, excludes folders from the Nautilus action,
+and makes the development linter report missing tools and crashes.
+
 A share sheet for [Tailscale Taildrop](https://tailscale.com/kb/1106/taildrop):
 press a key, pick a device, and whatever you had highlighted, copied, or
 selected in Nautilus lands on it.
@@ -24,6 +27,7 @@ already loaded to send. Pick a device, press **Enter**, done.
 3. text on the clipboard
 
 **Right-click files in Nautilus → Send with Taildrop** — loads those files.
+Folders are excluded. Archive a folder before sending it.
 
 The footer of the sheet always shows what is loaded (with a preview or
 thumbnail), so you can check before sending. To load something else
@@ -46,6 +50,9 @@ Only devices that can receive right now are shown; the rest are a count.
 The list refreshes while the sheet is open, so a device appears as soon as
 you open Tailscale on it.
 
+Taildrop works between untagged devices using the same Tailscale account.
+It cannot send to other users' devices or tagged servers.
+
 Send-only. Receiving is already handled by Omarchy's
 `omarchy-tailscale-receive` service, which drops incoming files into
 `~/Downloads` and notifies you.
@@ -53,7 +60,7 @@ Send-only. Receiving is already handled by Omarchy's
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/ryenski/omarchy-taildrop.git --enable
+omarchy plugin add https://github.com/justcarlson/omarchy-taildrop.git --enable
 ```
 
 `omarchy plugin add` never runs plugin code. The first time the shell loads
@@ -82,6 +89,9 @@ notification:
 ~/.config/omarchy/plugins/ryenski.taildrop/send.sh setup
 ~/.config/omarchy/plugins/ryenski.taildrop/send.sh add-keybind
 ```
+
+If a dotfile manager owns `bindings.lua`, save the shortcut and layer rule in its
+source too. A later apply can otherwise remove the shortcut.
 
 Requirements: `tailscale` on `PATH` with your user set as the Tailscale
 operator (`tailscale set --operator=$USER`, run once as root), Taildrop
