@@ -358,7 +358,8 @@ BIND_KEY="SUPER + SHIFT + T"
 BIND_COMMAND="omarchy-shell shell toggle $PLUGIN_ID"
 
 setup_nautilus() {
-  python3 -c 'import gi; gi.require_version("Nautilus", "4.1")' 2>/dev/null || return 1
+  # Nautilus uses the distro's GI bindings, which mise/venv Python may lack.
+  /usr/bin/python3 -c 'import gi; gi.require_version("Nautilus", "4.1")' 2>/dev/null || return 1
   if [[ -f $EXT_FILE ]] && cmp -s "$PLUGIN_DIR/nautilus/taildrop.py" "$EXT_FILE"; then
     return 1
   fi
