@@ -17,6 +17,7 @@ class ShellHelperTests(unittest.TestCase):
         self.bin.mkdir()
         for name in ("runtime", "state", "cache", "data", "config"):
             (self.root / name).mkdir()
+        (self.root / "runtime").chmod(0o700)
         self.env = dict(
             os.environ,
             PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
@@ -75,6 +76,69 @@ fi
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), {"kind": "sensitive"})
         self.assertFalse((self.root / "runtime" / "omarchy-taildrop").exists())
+
+    def test_clipboard_staging_requires_a_private_runtime_directory(self):
+        runtime = self.root / "runtime"
+        link = self.root / "runtime-link"
+        link.symlink_to(runtime, target_is_directory=True)
+        for path in ("", "relative", str(self.root / "missing"), str(link)):
+            with self.subTest(path=path):
+                result = self.run_script("send.sh", "stage-clipboard", "--no-primary",
+                                         XDG_RUNTIME_DIR=path, TEST_CLIPBOARD="text")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("private XDG_RUNTIME_DIR", result.stderr)
+                self.assertEqual(result.stdout, "")
+        runtime.chmod(0o755)
+        result = self.run_script("send.sh", "stage-clipboard", "--no-primary",
+                                 TEST_CLIPBOARD="image")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((runtime / "omarchy-taildrop").exists())
+
+    def test_clipboard_staging_rejects_another_owner(self):
+        self.mock("stat", "#!/bin/bash\nprintf '%s:700\\n' \"$((UID + 1))\"\n")
+        result = self.run_script("send.sh", "stage-clipboard", "--no-primary",
+                                 TEST_CLIPBOARD="text")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.root / "runtime" / "omarchy-taildrop").exists())
+
+    def test_clipboard_staging_stops_after_directory_setup_failure(self):
+        for name in ("rm", "mkdir"):
+            with self.subTest(command=name):
+                mock = self.mock(name, "#!/bin/bash\nexit 1\n")
+                result = self.run_script("send.sh", "stage-clipboard", "--no-primary",
+                                         TEST_CLIPBOARD="text")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("could not create private staging directory", result.stderr)
+                self.assertEqual(result.stdout, "")
+                mock.unlink()
+
+    def test_clipboard_staging_replaces_a_symlink_without_touching_its_target(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        sentinel = outside / "clipboard.txt"
+        sentinel.write_text("keep this file")
+        stage = self.root / "runtime" / "omarchy-taildrop"
+        stage.symlink_to(outside, target_is_directory=True)
+        result = self.run_script("send.sh", "stage-clipboard", "--no-primary",
+                                 TEST_CLIPBOARD="text")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sentinel.read_text(), "keep this file")
+        self.assertFalse(stage.is_symlink())
+        staged = Path(json.loads(result.stdout)["path"])
+        self.assertEqual(stage.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(staged.stat().st_mode & 0o777, 0o600)
+
+    def test_history_staging_stops_when_runtime_is_unsafe(self):
+        history = self.root / "state" / "omarchy"
+        history.mkdir()
+        image = self.root / "history.png"
+        image.write_bytes(b"history fixture")
+        (history / "clipboard-history.json").write_text(json.dumps([
+            {"type": "image", "path": str(image), "mime": "image/png"}
+        ]))
+        result = self.run_script("send.sh", "stage-image", XDG_RUNTIME_DIR="")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
 
     def test_history_image_still_works(self):
         history = self.root / "state" / "omarchy"

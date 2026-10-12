@@ -1,7 +1,8 @@
 # Taildrop for Omarchy
 
 This fork fixes clipboard image staging, excludes folders from the Nautilus action,
-uses system Python for Nautilus setup, and reports missing linters and crashes.
+uses system Python for Nautilus setup, reports linter failures, and requires
+private clipboard staging.
 
 A share sheet for [Tailscale Taildrop](https://tailscale.com/kb/1106/taildrop):
 press a key, pick a device, and whatever you had highlighted, copied, or
@@ -98,6 +99,10 @@ operator (`tailscale set --operator=$USER`, run once as root), Taildrop
 enabled for the tailnet, `wl-clipboard`, `jq`, and `nautilus-python` for the
 context-menu item. Progress percentages need util-linux `script` (present on
 Omarchy). Nothing in the plugin escalates privileges.
+
+Clipboard staging requires an absolute `XDG_RUNTIME_DIR` owned by your user,
+with mode `0700`. Omarchy provides this in the desktop session. The helper stops
+if the directory is missing or unsafe; it does not fall back to shared `/tmp`.
 
 ## Remove
 
