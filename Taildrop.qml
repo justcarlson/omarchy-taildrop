@@ -47,6 +47,8 @@ Item {
   property string payloadCaptured: ""
   property var payloadFiles: []
   property int payloadStamp: 0          // bumps so the thumbnail reloads a same-named file
+  property int stageRequestSerial: 0
+  property var pendingStageCommand: null
   readonly property bool payloadReady: payloadKind === "text" || payloadKind === "image" || payloadKind === "files"
   readonly property string sendSh: localPath(Qt.resolvedUrl("send.sh"))
 
@@ -120,10 +122,11 @@ Item {
 
   function close() {
     root.opened = false
+    root.invalidateStage()
   }
 
   function dismiss() {
-    root.opened = false
+    root.close()
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide(root.pluginId)
   }
@@ -134,6 +137,7 @@ Item {
   }
 
   function setFilesPayload(files, source) {
+    root.invalidateStage()
     root.payloadFiles = files
     root.payloadSource = source
     root.payloadPath = ""
@@ -154,11 +158,36 @@ Item {
   }
 
   function runStage(command) {
-    if (stageProcess.running) return
+    root.invalidateStage()
     root.payloadKind = "staging"
     root.payloadFiles = []
+    if (stageProcess.running) {
+      root.pendingStageCommand = command
+      return
+    }
+    root.startStage(command)
+  }
+
+  function invalidateStage() {
+    root.stageRequestSerial += 1
+    root.pendingStageCommand = null
+  }
+
+  function startStage(command) {
+    stageProcess.requestSerial = root.stageRequestSerial
     stageProcess.command = command
     stageProcess.running = true
+  }
+
+  function finishStage(exitCode, stdout) {
+    if (root.pendingStageCommand !== null && root.opened) {
+      var command = root.pendingStageCommand
+      root.pendingStageCommand = null
+      root.startStage(command)
+      return
+    }
+    if (root.opened && stageProcess.requestSerial === root.stageRequestSerial)
+      root.applyStaged(exitCode, stdout)
   }
 
   function applyStaged(exitCode, stdout) {
@@ -502,9 +531,10 @@ Item {
 
   Process {
     id: stageProcess
+    property int requestSerial: -1
     stdout: StdioCollector { id: stageStdout; waitForEnd: true }
     onExited: function(exitCode) {
-      root.applyStaged(exitCode, stageStdout.text)
+      root.finishStage(exitCode, stageStdout.text)
     }
   }
 
