@@ -31,8 +31,12 @@ class FakeMenuItem:
 
 
 class FakeFile:
-    def __init__(self, path):
+    def __init__(self, path, directory=False):
         self._path = path
+        self._directory = directory
+
+    def is_directory(self):
+        return self._directory
 
     def get_location(self):
         if self._path is None:
@@ -118,6 +122,17 @@ class NautilusExtensionTests(unittest.TestCase):
     def test_no_selection_means_no_item(self):
         self.assertEqual(self.items(), [])
         self.assertEqual(self.items(None), [])
+
+    def test_directories_do_not_get_a_send_action(self):
+        files = [FakeFile("/home/u/folder", directory=True)]
+        self.assertEqual(self.provider.get_file_items(None, files), [])
+
+    def test_mixed_selection_sends_only_files(self):
+        files = [FakeFile("/home/u/folder", directory=True), FakeFile("/home/u/a.pdf")]
+        (item,) = self.provider.get_file_items(None, files)
+        item.activate()
+        argv, _ = self.gi.Gio.Subprocess.new.call_args.args
+        self.assertEqual(json.loads(argv[4])["files"], ["/home/u/a.pdf"])
 
     def test_no_item_once_the_plugin_is_removed(self):
         os.remove(self.manifest)

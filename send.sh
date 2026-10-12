@@ -72,7 +72,9 @@ usage() {
 # Prints the mime types on offer for the given selection (--primary or empty),
 # or nothing when that selection is empty.
 list_types() {
-  wl-paste $1 --list-types 2>/dev/null || true
+  local -a selection_args=()
+  [[ -n ${1:-} ]] && selection_args+=("$1")
+  wl-paste "${selection_args[@]}" --list-types 2>/dev/null || true
 }
 
 has_text() {
@@ -102,7 +104,9 @@ reset_stage() {
 # highlight looks like.
 stage_text() {
   local selection="$1" source="$2" file="$STAGE_DIR/clipboard.txt"
-  if ! timeout 2s wl-paste $selection --type text --no-newline >"$file" 2>/dev/null \
+  local -a selection_args=()
+  [[ -n $selection ]] && selection_args+=("$selection")
+  if ! timeout 2s wl-paste "${selection_args[@]}" --type text --no-newline >"$file" 2>/dev/null \
     || [[ -z $(tr -d '[:space:]' <"$file" | head -c 1) ]]; then
     rm -f "$file"
     return 1
@@ -113,7 +117,7 @@ stage_text() {
     '{kind:"text", source:$source, path:$path, chars:$chars, preview:$preview}'
 }
 
-stage_image() {
+stage_clipboard_image() {
   local mime="$1" ext file
   ext=${mime#image/}
   [[ $ext == jpeg ]] && ext=jpg
@@ -129,7 +133,7 @@ stage_image() {
 HISTORY_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/clipboard-history.json"
 
 stage_image() {
-  local back=0 total=0 index=0 line path mime captured ext file
+  local back=0 total=0 index=0 path mime captured ext file
   local -a entries=()
 
   while (( $# )); do
@@ -188,7 +192,7 @@ stage_clipboard() {
     fi
   fi
 
-  if mime=$(image_mime "$types") && stage_image "$mime"; then
+  if mime=$(image_mime "$types") && stage_clipboard_image "$mime"; then
     return 0
   fi
 
@@ -216,7 +220,7 @@ notify() {
 send_one() {
   local index="$1" file="$2" target="$3"
   local -a cmd=(tailscale file cp --update-interval=250ms -- "$file" "$target:")
-  local chunk line last_pct="" message="" status
+  local chunk last_pct="" message="" status
 
   if command -v script >/dev/null; then
     local quoted
@@ -250,7 +254,7 @@ send_one() {
   message=${message%% }
 
   if (( status == 0 )); then
-    emit done "$index"
+    emit 'done' "$index"
     return 0
   fi
   emit fail "$index" "${message:-Transfer failed}"
@@ -258,7 +262,7 @@ send_one() {
 }
 
 send_files() {
-  local target="" label="" file index=0 ok=0 failed=0 what last_error=""
+  local target="" label="" file index=0 ok=0 failed=0 what
   local -a files=()
 
   while (( $# )); do

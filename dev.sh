@@ -66,6 +66,10 @@ case "${1:-}" in
     echo "manifest ok"
     ;;
   lint)
+    if ! command -v "$qmllint" >/dev/null 2>&1; then
+      echo "dev.sh: qmllint not found: $qmllint" >&2
+      exit 1
+    fi
     # `qs.*` is Quickshell's runtime alias for the shell root, so give qmllint
     # an import dir where `qs` resolves. The shell's grouped-property
     # singletons (Color.menu.*, Style.font.*) still lint as bare QObjects and
@@ -74,7 +78,12 @@ case "${1:-}" in
     imports="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-taildrop/qmlimports"
     mkdir -p "$imports"
     ln -sfn "$omarchy_path/shell" "$imports/qs"
-    output=$("$qmllint" -I "$imports" "$repo"/*.qml 2>&1 || true)
+    lint_status=0
+    output=$("$qmllint" -I "$imports" "$repo"/*.qml 2>&1) || lint_status=$?
+    if (( lint_status != 0 )); then
+      printf '%s\n' "$output" >&2
+      exit "$lint_status"
+    fi
     filtered=$(grep -E '^(Warning|Error)' <<<"$output" \
       | grep -Ev 'Unqualified access|not found on type "QObject"|Type PanelWindow is not creatable|QProcess::ExitStatus' || true)
     if [[ -n $filtered ]]; then
