@@ -59,7 +59,7 @@
 
 set -o pipefail
 
-STAGE_DIR="${XDG_RUNTIME_DIR:-/tmp}/omarchy-taildrop"
+STAGE_DIR=""
 PLUGIN_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PLUGIN_ID=$(jq -r '.id // empty' "$PLUGIN_DIR/manifest.json" 2>/dev/null)
 : "${PLUGIN_ID:=ryenski.taildrop}"
@@ -94,9 +94,19 @@ image_mime() {
 }
 
 reset_stage() {
-  rm -rf "$STAGE_DIR"
-  mkdir -p "$STAGE_DIR"
-  chmod 700 "$STAGE_DIR"
+  local runtime="${XDG_RUNTIME_DIR:-}" metadata
+  if [[ $runtime != /* || ! -d $runtime || -L $runtime ]] \
+    || ! metadata=$(stat -c '%u:%a' -- "$runtime") \
+    || [[ $metadata != "$EUID:700" ]]; then
+    echo 'send.sh: staging requires an owned, private XDG_RUNTIME_DIR (mode 0700)' >&2
+    return 1
+  fi
+  STAGE_DIR="$runtime/omarchy-taildrop"
+  umask 077
+  if ! rm -rf -- "$STAGE_DIR" || ! mkdir -- "$STAGE_DIR"; then
+    echo 'send.sh: could not create private staging directory' >&2
+    return 1
+  fi
 }
 
 # Writes the text on the given selection to clipboard.txt. Fails when the
@@ -164,7 +174,7 @@ stage_image() {
 
   ext=${mime#image/}
   [[ $ext == jpeg ]] && ext=jpg
-  reset_stage
+  reset_stage || return 1
   file="$STAGE_DIR/clipboard.$ext"
   cp -- "$path" "$file" || { echo '{"kind":"none"}'; return 0; }
 
@@ -183,7 +193,7 @@ stage_clipboard() {
     return 0
   fi
 
-  reset_stage
+  reset_stage || return 1
 
   if (( use_primary )); then
     primary_types=$(list_types --primary)

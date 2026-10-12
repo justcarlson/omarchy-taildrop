@@ -1,7 +1,9 @@
 # Taildrop for Omarchy
 
 This fork fixes clipboard image staging, excludes folders from the Nautilus action,
-uses system Python for Nautilus setup, and reports missing linters and crashes.
+uses system Python for Nautilus setup, reports linter failures, and requires
+private clipboard staging. Stale clipboard results cannot replace newly selected
+files.
 
 A share sheet for [Tailscale Taildrop](https://tailscale.com/kb/1106/taildrop):
 press a key, pick a device, and whatever you had highlighted, copied, or
@@ -59,13 +61,25 @@ Send-only. Receiving is already handled by Omarchy's
 
 ## Install
 
+Review an exact commit first. Retain a clean, detached checkout and its complete
+file digest inventory outside the plugin directory. Recheck them against the
+review record, then install from that checkout without enabling it:
+
 ```bash
-omarchy plugin add https://github.com/justcarlson/omarchy-taildrop.git --enable
+omarchy plugin add "file://$reviewed" --yes
 ```
 
-`omarchy plugin add` never runs plugin code. The first time the shell loads
-the overlay, it takes care of the two things that live outside the plugin
-folder:
+Here `reviewed` is the absolute path of that retained checkout. Before enabling,
+verify the installed revision and complete inventory, including file modes,
+symlink targets, and unexpected files, against the review record. Run
+`omarchy plugin validate` on the installed directory, then
+`omarchy plugin enable ryenski.taildrop`. Keep the retained checkout as the local
+origin; every update or reinstall needs a new review. To update, stage the
+replacement first and preserve the current files and enablement state for
+rollback before disabling it.
+
+The first time the shell loads the overlay, it takes care of the two things that
+live outside the plugin folder:
 
 - The Nautilus **Send with Taildrop** menu item is copied into
   `~/.local/share/nautilus-python/extensions/` and kept in sync on updates.
@@ -98,6 +112,10 @@ operator (`tailscale set --operator=$USER`, run once as root), Taildrop
 enabled for the tailnet, `wl-clipboard`, `jq`, and `nautilus-python` for the
 context-menu item. Progress percentages need util-linux `script` (present on
 Omarchy). Nothing in the plugin escalates privileges.
+
+Clipboard staging requires an absolute `XDG_RUNTIME_DIR` owned by your user,
+with mode `0700`. Omarchy provides this in the desktop session. The helper stops
+if the directory is missing or unsafe; it does not fall back to shared `/tmp`.
 
 ## Remove
 
